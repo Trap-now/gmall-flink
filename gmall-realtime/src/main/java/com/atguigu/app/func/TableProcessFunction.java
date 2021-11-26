@@ -34,6 +34,8 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, S
     public void open(Configuration parameters) throws Exception {
         Class.forName(GmallConfig.PHOENIX_DRIVER);
         connection = DriverManager.getConnection(GmallConfig.PHOENIX_SERVER);
+
+        //读取MySQL配置表放入内存【Map】！
     }
 
     //value:{"db":"","tn":"table_process","before":{},"after":{"source_table":""....},"type":""}
@@ -134,7 +136,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, S
             filterColumns(value.getJSONObject("after"), tableProcess.getSinkColumns());
 
             //3.根据广播状态数据  分流   主流：Kafka   侧输出流：HBase
-            //value.put("sinkTable", tableProcess.getSinkTable());
+            value.put("sinkTable", tableProcess.getSinkTable());
 
             if (TableProcess.SINK_TYPE_HBASE.equals(tableProcess.getSinkType())) {
                 ctx.output(objectOutputTag, value);
@@ -143,6 +145,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, S
             }
 
         } else {
+            //从内存的Map中尝试获取数据
             System.out.println(key + "不存在！");
         }
     }

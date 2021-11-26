@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.alibaba.ververica.cdc.connectors.mysql.MySQLSource;
 import com.alibaba.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.alibaba.ververica.cdc.debezium.DebeziumSourceFunction;
+import com.atguigu.app.func.DimSinkFunction;
 import com.atguigu.app.func.MyFlinkCDCDeSer;
 import com.atguigu.app.func.TableProcessFunction;
 import com.atguigu.bean.TableProcess;
@@ -14,8 +15,12 @@ import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.connectors.kafka.KafkaSerializationSchema;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.apache.kafka.clients.producer.ProducerRecord;
+
+import javax.annotation.Nullable;
 
 public class BaseDbApp {
 
@@ -84,9 +89,18 @@ public class BaseDbApp {
         //TODO 8.将HBase数据写出
         DataStream<JSONObject> hbaseDS = kafkaDS.getSideOutput(hbaseTag);
         hbaseDS.print("HBase>>>>>");
+        hbaseDS.addSink(new DimSinkFunction());
 
         //TODO 9.将Kafka数据写出
         kafkaDS.print("Kafka>>>>>");
+        kafkaDS.addSink(MyKafkaUtil.getKafkaSink(new KafkaSerializationSchema<JSONObject>() {
+            //element:{"db":"","tableName":"","before":{},"after":{"id":""...},"type":"","sinkTable":""}
+            @Override
+            public ProducerRecord<byte[], byte[]> serialize(JSONObject element, @Nullable Long timestamp) {
+                return new ProducerRecord<>(element.getString("sinkTable"),
+                        element.getString("after").getBytes());
+            }
+        }));
 
         //TODO 10.启动任务
         env.execute("BaseDbApp");
